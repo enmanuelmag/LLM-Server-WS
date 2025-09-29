@@ -6,16 +6,19 @@ export { ChatMessage };
 import { GenericDBService } from './GenericDBService';
 import { config } from '../config';
 import { Logger } from '../utils/logger';
+import { EmailSearchService } from './EmailSearchService';
 
 export class LMService {
   private openai: OpenAI;
   private dbService: GenericDBService;
+  private emailSearchService: EmailSearchService;
 
   constructor() {
     this.openai = new OpenAI({
       apiKey: config.openai.apiKey,
     });
     this.dbService = new GenericDBService();
+    this.emailSearchService = new EmailSearchService();
   }
 
   /**
@@ -110,6 +113,8 @@ export class LMService {
           },
         },
       },
+      //! Añadir la herramienta de búsqueda de emails
+      //! Definir los parámetros y descripción
     ];
 
     let maxRetries = 3;
@@ -184,7 +189,6 @@ export class LMService {
         break;
       }
 
-
       // Process each tool call
       for (const toolCall of assistantMessage.tool_calls) {
         // Avoid duplicate calls
@@ -238,6 +242,9 @@ export class LMService {
       if (functionName === 'save-email') {
         const args = JSON.parse(argumentsString);
         return await this.dbService.saveEmail(args);
+      } else if (functionName === 'search-emails') {
+        const args = JSON.parse(argumentsString);
+        return await this.emailSearchService.searchEmails(args);
       } else {
         return { success: false, error: `Unknown function: ${functionName}` };
       }
