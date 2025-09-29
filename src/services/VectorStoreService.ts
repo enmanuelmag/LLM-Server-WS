@@ -57,10 +57,9 @@ export class VectorStoreService {
    * Create embedding for text using OpenAI's embedding model
    */
   private async createEmbedding(text: string): Promise<number[]> {
-    const response = await this.openai.embeddings.create({
-      model: config.openai.embeddingModel,
-      input: text,
-    });
+    //! Crear el embedding usando OpenAI, con el módulo "embeddings"
+    //! La variable debe ser "response"
+    const response: any = {};
 
     return response.data[0].embedding;
   }
@@ -79,8 +78,8 @@ export class VectorStoreService {
 
     Logger.debug('🔍 Searching vector store for:', query);
 
-    // Create embedding for the query
-    const queryEmbedding = await this.createEmbedding(query);
+    //! Create embedding for the query
+    const queryEmbedding: any = [];
 
     // Calculate similarity with all items
     const similarities = this.items.map((item) => ({

@@ -9,10 +9,8 @@ export class RAGService {
   private vectorStore: VectorStoreService;
 
   constructor(items: VectorItem[]) {
-    this.openai = new OpenAI({
-      apiKey: config.openai.apiKey,
-    });
-    this.vectorStore = new VectorStoreService(items);
+    //! Inicializar el cliente de OpenAI con la clave API desde la configuración
+    //! Inicializar el servicio de VectorStore con los elementos proporcionados (ítems)
   }
 
   /**
@@ -73,15 +71,11 @@ INSTRUCCIONES:
 INFORMACIÓN RELEVANTE:
 ${itemsContext}`;
 
-    const completion = await this.openai.chat.completions.create({
-      model: config.openai.model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: query },
-      ],
-      temperature: 0.3, // Low temperature for consistent, factual responses
-      max_tokens: 500,
-    });
+    //! Usar el módulo "chat.completions" para crear la respuesta en base al
+    //! prompt del sistema, los resultados del RAG y la consulta del usuario
+    //! La variable debe ser "completion"
+    //* Debe ser un comportamiento determinista
+    const completion: any = {}; // Reemplazar con la llamada real a OpenAI
 
     const answer =
       completion.choices[0].message.content ||
