@@ -153,29 +153,19 @@ export class FineTuningService {
 
     // Subir archivo de entrenamiento
     const trainingFileBuffer = await fs.readFile(trainingPath);
-    const trainingFile = await this.client.files.create({
-      file: new File(
-        [new Uint8Array(trainingFileBuffer)],
-        this.trainingFileName,
-        { type: 'application/jsonl' }
-      ),
-      purpose: 'fine-tune',
-    });
-
+    //! Usar el módulo files para crear y subir el archivo
+    //! La variable debe ser trainingFile
+    const trainingFile: any = {}; // Reemplazar con la llamada real
     Logger.info(`✅ Archivo de entrenamiento subido: ${trainingFile.id}`);
 
     // Subir archivo de validación (opcional pero recomendado)
     let validationFileId: string | undefined;
     try {
       const validationFileBuffer = await fs.readFile(validationPath);
-      const validationFile = await this.client.files.create({
-        file: new File(
-          [new Uint8Array(validationFileBuffer)],
-          this.validationFileName,
-          { type: 'application/jsonl' }
-        ),
-        purpose: 'fine-tune',
-      });
+      //! Usar el módulo files para crear y subir el archivo
+      // const validationFile = await this.client.files.create({
+      const validationFile: any = {}; // Reemplazar con la llamada real
+
       validationFileId = validationFile.id;
       Logger.info(`✅ Archivo de validación subido: ${validationFile.id}`);
     } catch (error) {
@@ -198,18 +188,11 @@ export class FineTuningService {
     const { trainingFileId, validationFileId } =
       await this.uploadTrainingFiles();
 
-    // Configuración completa del job
-    const job = await this.client.fineTuning.jobs.create({
-      training_file: trainingFileId,
-      validation_file: validationFileId,
-      model: 'gpt-3.5-turbo-1106', // Modelo base recomendado
-      suffix: this.modelName, // Sufijo personalizado para identificar el modelo
-      hyperparameters: {
-        n_epochs: 3, // Número de epochs (1-50, default: auto)
-        batch_size: 1, // Tamaño del batch (auto, o potencias de 2)
-        learning_rate_multiplier: 0.1, // Multiplicador de learning rate (0.02-2.0)
-      },
-    });
+    //! Crear el job, pasándole ambos archivos IDs
+    //! El modelo base debe ser gpt-3.5-turbo-1106
+    //! El sufijo debe ser this.modelName
+    //! Hyper-parámetros recomendados: n_epochs=3, batch_size=1, learning_rate_multiplier=0.1
+    const job: any = {}; // Reemplazar con la llamada real
 
     Logger.info(`✅ Job de fine-tuning creado: ${job.id}`);
     Logger.info(`📋 Configuración:`, {
@@ -222,127 +205,6 @@ export class FineTuningService {
     return job.id;
   }
 
-  /**
-   * 4. MONITOREO DEL JOB
-   * Monitorea el progreso del fine-tuning y maneja eventos
-   */
-  async monitorFineTuningJob(jobId: string): Promise<string> {
-    Logger.info(`👀 Monitoreando job: ${jobId}`);
-
-    let job = await this.client.fineTuning.jobs.retrieve(jobId);
-
-    // Monitoreo con polling
-    while (['validating_files', 'queued', 'running'].includes(job.status)) {
-      Logger.info(`📊 Estado actual: ${job.status}`);
-
-      if (job.status === 'running') {
-        // Obtener eventos del job para ver el progreso
-        const events = await this.client.fineTuning.jobs.listEvents(jobId, {
-          limit: 10,
-        });
-
-        const latestEvent = events.data[0];
-        if (latestEvent && latestEvent.message) {
-          Logger.info(`📈 Progreso: ${latestEvent.message}`);
-        }
-      }
-
-      // Esperar 30 segundos antes de verificar nuevamente
-      await new Promise((resolve) => setTimeout(resolve, 30000));
-      job = await this.client.fineTuning.jobs.retrieve(jobId);
-    }
-
-    if (job.status === 'succeeded') {
-      Logger.info(`✅ Fine-tuning completado exitosamente!`);
-      Logger.info(`🎯 Modelo resultante: ${job.fine_tuned_model}`);
-
-      // Mostrar métricas finales si están disponibles
-      if (job.result_files && job.result_files.length > 0) {
-        await this.downloadResultFiles(job.result_files);
-      }
-
-      return job.fine_tuned_model!;
-    } else {
-      throw new Error(`Fine-tuning falló con estado: ${job.status}`);
-    }
-  }
-
-  /**
-   * Descarga y analiza archivos de resultados del fine-tuning
-   */
-  private async downloadResultFiles(fileIds: string[]): Promise<void> {
-    Logger.info('📥 Descargando archivos de resultados...');
-
-    for (const fileId of fileIds) {
-      try {
-        const file = await this.client.files.retrieve(fileId);
-        const content = await this.client.files.content(fileId);
-
-        const resultsPath = path.join(
-          process.cwd(),
-          'uploads',
-          `results-${fileId}.jsonl`
-        );
-        const buffer = await content.arrayBuffer();
-        await fs.writeFile(resultsPath, Buffer.from(buffer));
-
-        Logger.info(`📊 Archivo de resultados descargado: ${resultsPath}`);
-
-        // Analizar métricas si es posible
-        await this.analyzeResults(resultsPath);
-      } catch (error) {
-        Logger.warn(`⚠️ No se pudo descargar archivo ${fileId}:`, error);
-      }
-    }
-  }
-
-  /**
-   * Analiza métricas de los archivos de resultados
-   */
-  private async analyzeResults(filePath: string): Promise<void> {
-    try {
-      const content = await fs.readFile(filePath, 'utf-8');
-      const lines = content.split('\n').filter((line) => line.trim());
-
-      let trainingLoss: number[] = [];
-      let validationLoss: number[] = [];
-
-      for (const line of lines) {
-        try {
-          const data = JSON.parse(line);
-          if (data.type === 'metrics') {
-            if (data.data.train_loss !== undefined) {
-              trainingLoss.push(data.data.train_loss);
-            }
-            if (data.data.valid_loss !== undefined) {
-              validationLoss.push(data.data.valid_loss);
-            }
-          }
-        } catch (e) {
-          // Ignorar líneas que no son JSON válido
-        }
-      }
-
-      if (trainingLoss.length > 0) {
-        const finalTrainingLoss = trainingLoss[trainingLoss.length - 1];
-        Logger.info(`📉 Training Loss final: ${finalTrainingLoss.toFixed(4)}`);
-      }
-
-      if (validationLoss.length > 0) {
-        const finalValidationLoss = validationLoss[validationLoss.length - 1];
-        Logger.info(
-          `📉 Validation Loss final: ${finalValidationLoss.toFixed(4)}`
-        );
-      }
-    } catch (error) {
-      Logger.warn('⚠️ No se pudo analizar archivo de resultados:', error);
-    }
-  }
-
-  /**
-   * 5. USO DEL MODELO FINE-TUNED
-   * Utiliza el modelo entrenado para hacer predicciones
-   */
   async classifyEmailWithFineTunedModel(
     modelId: string,
     emailData: EmailClassificationRequest
@@ -378,145 +240,6 @@ export class FineTuningService {
     }
   }
 
-  /**
-   * 6. COMPARACIÓN CON MODELO BASE
-   * Compara el rendimiento del modelo fine-tuned vs modelo base
-   */
-  async compareModels(fineTunedModelId: string): Promise<void> {
-    Logger.info('📊 Comparando modelo fine-tuned vs modelo base...');
-
-    // Usar datos de validación para comparar
-    const { validationPath } = await this.prepareDataset();
-    const validationContent = await fs.readFile(validationPath, 'utf-8');
-    const validationData = validationContent
-      .split('\n')
-      .filter((line) => line.trim())
-      .map((line) => JSON.parse(line) as FineTuningDataPoint)
-      .slice(0, 5); // Solo usar 5 ejemplos para demo
-
-    let baseModelCorrect = 0;
-    let fineTunedModelCorrect = 0;
-
-    for (let i = 0; i < validationData.length; i++) {
-      const testCase = validationData[i];
-      const userMessage = testCase.messages.find(
-        (m) => m.role === 'user'
-      )?.content;
-      const expectedResponse = testCase.messages.find(
-        (m) => m.role === 'assistant'
-      )?.content;
-
-      if (!userMessage || !expectedResponse) continue;
-
-      try {
-        // Extraer subject y body del user message
-        const lines = userMessage.split('\n');
-        const subjectLine = lines.find((l) => l.startsWith('Subject:'));
-        const bodyStart = lines.findIndex((l) => l.startsWith('Body:'));
-
-        if (!subjectLine || bodyStart === -1) continue;
-
-        const emailData: EmailClassificationRequest = {
-          emailSubject: subjectLine.replace('Subject:', '').trim(),
-          emailBody: lines
-            .slice(bodyStart + 1)
-            .join('\n')
-            .replace('Body:', '')
-            .trim(),
-        };
-
-        // Probar modelo base
-        const baseResult = await this.classifyEmailWithBaseModel(emailData);
-        const fineTunedResult = await this.classifyEmailWithFineTunedModel(
-          fineTunedModelId,
-          emailData
-        );
-
-        // Evaluar correctitud (simplificado - en producción sería más sofisticado)
-        const expectedData = JSON.parse(expectedResponse);
-
-        if (baseResult.isFinancial === expectedData.isFinancial) {
-          baseModelCorrect++;
-        }
-
-        if (fineTunedResult.isFinancial === expectedData.isFinancial) {
-          fineTunedModelCorrect++;
-        }
-
-        Logger.info(`Caso ${i + 1}:`);
-        Logger.info(
-          `  Base: ${baseResult.isFinancial} (confianza: ${baseResult.confidence})`
-        );
-        Logger.info(
-          `  Fine-tuned: ${fineTunedResult.isFinancial} (confianza: ${fineTunedResult.confidence})`
-        );
-        Logger.info(`  Esperado: ${expectedData.isFinancial}`);
-      } catch (error) {
-        Logger.warn(`Error evaluando caso ${i + 1}:`, error);
-      }
-    }
-
-    const baseAccuracy = baseModelCorrect / validationData.length;
-    const fineTunedAccuracy = fineTunedModelCorrect / validationData.length;
-    const improvement =
-      ((fineTunedAccuracy - baseAccuracy) / baseAccuracy) * 100;
-
-    Logger.info('\n📈 RESULTADOS DE COMPARACIÓN:');
-    Logger.info(
-      `🔹 Modelo Base - Precisión: ${(baseAccuracy * 100).toFixed(
-        1
-      )}% (${baseModelCorrect}/${validationData.length})`
-    );
-    Logger.info(
-      `🔸 Modelo Fine-tuned - Precisión: ${(fineTunedAccuracy * 100).toFixed(
-        1
-      )}% (${fineTunedModelCorrect}/${validationData.length})`
-    );
-    Logger.info(`📊 Mejora: ${improvement.toFixed(1)}%`);
-  }
-
-  /**
-   * Clasificación con modelo base para comparación
-   */
-  private async classifyEmailWithBaseModel(
-    emailData: EmailClassificationRequest
-  ): Promise<EmailClassificationResult> {
-    const systemPrompt =
-      'Clasifica si este email contiene información de transacciones financieras y extrae detalles relevantes.';
-    const userPrompt = `Subject: ${emailData.emailSubject}\nBody: ${emailData.emailBody}`;
-
-    const completion = await this.client.chat.completions.create({
-      model: 'gpt-3.5-turbo-1106', // Modelo base
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: 0.1,
-      max_tokens: 500,
-    });
-
-    const response = completion.choices[0].message?.content;
-    if (!response) {
-      throw new Error('No se recibió respuesta del modelo base');
-    }
-
-    try {
-      return JSON.parse(response);
-    } catch (error) {
-      // Si el modelo base no devuelve JSON válido, crear respuesta default
-      return {
-        isFinancial: response.toLowerCase().includes('true'),
-        confidence: 0.5,
-        category: 'unknown',
-        reasoning: 'Modelo base - formato no estructurado',
-      };
-    }
-  }
-
-  /**
-   * 7. GESTIÓN DEL CICLO DE VIDA
-   * Lista todos los modelos fine-tuned y permite gestión
-   */
   async listFineTunedModels(): Promise<void> {
     Logger.info('📋 Listando modelos fine-tuned...');
 
@@ -543,25 +266,6 @@ export class FineTuningService {
     }
   }
 
-  /**
-   * Elimina un modelo fine-tuned
-   */
-  async deleteFineTunedModel(modelId: string): Promise<void> {
-    Logger.info(`🗑️ Eliminando modelo: ${modelId}`);
-
-    try {
-      await this.client.models.del(modelId);
-      Logger.info('✅ Modelo eliminado correctamente');
-    } catch (error) {
-      Logger.error('❌ Error eliminando modelo:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * 8. WORKFLOW COMPLETO
-   * Ejecuta todo el proceso de fine-tuning de principio a fin
-   */
   async executeCompleteWorkflow(): Promise<string> {
     Logger.info('🚀 INICIANDO WORKFLOW COMPLETO DE FINE-TUNING');
     Logger.info('='.repeat(60));
@@ -575,10 +279,6 @@ export class FineTuningService {
       Logger.info('\n🚀 PASO 2: Creación del Job');
       const jobId = await this.createFineTuningJob();
 
-      // Paso 3: Monitorear progreso
-      Logger.info('\n👀 PASO 3: Monitoreo del Job');
-      const modelId = await this.monitorFineTuningJob(jobId);
-
       // Paso 4: Probar modelo
       Logger.info('\n🧪 PASO 4: Prueba del Modelo');
       const testEmail: EmailClassificationRequest = {
@@ -588,14 +288,13 @@ export class FineTuningService {
       };
 
       const result = await this.classifyEmailWithFineTunedModel(
-        modelId,
+        'modelId',
         testEmail
       );
       Logger.info('📊 Resultado de prueba:', result);
 
       // Paso 5: Comparar con modelo base
       Logger.info('\n📈 PASO 5: Comparación de Modelos');
-      await this.compareModels(modelId);
 
       // Paso 6: Listar todos los modelos
       Logger.info('\n📋 PASO 6: Gestión de Modelos');
@@ -604,7 +303,7 @@ export class FineTuningService {
       Logger.info('\n✅ WORKFLOW COMPLETO FINALIZADO');
       Logger.info('='.repeat(60));
 
-      return modelId;
+      return 'modelId';
     } catch (error) {
       Logger.error('❌ Error en el workflow:', error);
       throw error;

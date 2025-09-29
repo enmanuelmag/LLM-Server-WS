@@ -23,91 +23,9 @@ export class LMService {
   ): Promise<{ messages: ChatMessage[]; success: boolean; finalResult?: any }> {
     Logger.debug('🤖 Processing completion with model:', config.openai.model);
 
-    const tools = [
-      {
-        type: 'function' as const,
-        function: {
-          name: 'save-email',
-          description:
-            'Saves the processed email financial data to the database',
-          parameters: {
-            type: 'object',
-            properties: {
-              id: { type: 'string', description: 'ID of the email' },
-              confidence: {
-                type: 'number',
-                minimum: 0,
-                maximum: 1,
-                description:
-                  'The confidence level of the email belongs to financial transactions (0 to 1)',
-              },
-              subject: { type: 'string', description: 'Subject of the email' },
-              name: {
-                type: 'string',
-                maxLength: 30,
-                description: 'Name of the transaction, max 30 characters',
-              },
-              sender: {
-                type: 'object',
-                properties: {
-                  name: { type: 'string', description: 'Name of the sender' },
-                  email: {
-                    type: 'string',
-                    format: 'email',
-                    description: 'Email address of the sender',
-                  },
-                },
-                required: ['name', 'email'],
-              },
-              date: {
-                type: 'string',
-                format: 'date-time',
-                description:
-                  'Date of the transaction in ISO format with time zone',
-              },
-              body: {
-                type: 'string',
-                minLength: 1,
-                description: 'Email body content, cannot be empty',
-              },
-              description: {
-                type: 'string',
-                maxLength: 300,
-                description: 'Description of the transaction, max 300 chars',
-              },
-              type: {
-                type: 'string',
-                enum: ['income', 'expense'],
-                description: 'Type of financial transaction',
-              },
-              amount: {
-                type: 'object',
-                properties: {
-                  value: { type: 'number', description: 'Amount value' },
-                  currency: {
-                    type: 'string',
-                    description: 'Currency of the amount',
-                  },
-                },
-                required: ['value', 'currency'],
-              },
-            },
-            required: [
-              'id',
-              'confidence',
-              'subject',
-              'sender',
-              'date',
-              'body',
-              'name',
-              'description',
-              'type',
-              'amount',
-            ],
-          },
-        },
-      },
-    ];
+    //! Definir el array de tools que contenga la definición de la función save-email
+    //! Se debe definir el nombre, argumentos, descripción, esquema de parámetros y retorno
+    const tools: any = [];
 
     let maxRetries = 3;
     let currentRetry = 0;
@@ -146,13 +64,9 @@ export class LMService {
           };
         });
 
-      const completion = await this.openai.chat.completions.create({
-        model: config.openai.model,
-        messages: openaiMessages,
-        tools,
-        tool_choice: 'auto',
-        temperature: 0.1,
-      });
+      //! Usar el método create de chat.completions para llamar al modelo con los items de messages (tools calls o messages normales)
+      //! El modelo debe ser usado de manera determinista
+      const completion: ChatCompletionResponse = {} as any; // Reemplazar con la llamada real
 
       const assistantMessage = completion.choices[0].message;
 
@@ -180,7 +94,6 @@ export class LMService {
         };
         break;
       }
-
 
       // Process each tool call
       for (const toolCall of assistantMessage.tool_calls) {
@@ -232,12 +145,8 @@ export class LMService {
     argumentsString: string
   ): Promise<any> {
     try {
-      if (functionName === 'save-email') {
-        const args = JSON.parse(argumentsString);
-        return await this.dbService.saveEmail(args);
-      } else {
-        return { success: false, error: `Unknown function: ${functionName}` };
-      }
+      //! Implementar el llamado de la tool según su nombre
+      //! Parsear los argumentos desde argumentsString
     } catch (error) {
       return {
         success: false,
